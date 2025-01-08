@@ -1,9 +1,9 @@
-@name War Machine MK1.5
-@inputs EGP:wirelink CamAng:vector [PelvisParent Spine1Parent Spine2Parent HeadParent Left_UpperArmParent Right_UpperArmParent Left_ForeArmParent Right_ForeArmParent Left_HandParent Right_HandParent Left_ThighParent Right_ThighParent Left_CalfParent Right_CalfParent Left_FootParent Right_FootParent Plasma_PistolParent Heavy_BolterParent]:entity
+@name Project War Machine
+@inputs EGP:wirelink CamAng:vector [Turret1 Turret2 PelvisParent Spine1Parent Spine2Parent HeadParent Left_UpperArmParent Right_UpperArmParent Left_ForeArmParent Right_ForeArmParent Left_HandParent Right_HandParent Left_ThighParent Right_ThighParent Left_CalfParent Right_CalfParent Left_FootParent Right_FootParent Plasma_PistolParent Heavy_BolterParent]:entity
 @persist MOVEW MOVES MOVEA MOVED MOVEZ Turning MoveVal MOVEMAX ShiftVal [RFoot LFoot LHand RHand LeftLegFly RightLegFly]:vector Step WalkRate Yaw [Ranger2 Ranger3]:ranger M2Val M2Val2 EditMode
 @persist [Base Seat PodController]:entity DriverTargets:array Length1_Arm Length2_Arm Length1_Leg Length2_Leg On_Ground2 [LocalEyes PelvisAng LocalEyes3]:angle HasJumpPack
 @persist [HT CT Bones Flames Animation BoneParents]:table [SpawnStatus CoreStatus]:string [HN CN I SpawnCounter] DriverStore:entity Pistolfirerate ZoomLevel  Scale ThrustColor:vector4 ThrustColor2:vector
-@persist MovementBlock Boosting Landed BoostData:table Nodes DistBelt CamParent:entity CamPos:vector CamDist CamFOV StartedBoosting StartPos:vector M2Val3 M2Val3Increase Flying BoostingTest
+@persist [Turret1 Turret2]:entity MovementBlock Boosting Landed BoostData:table Nodes DistBelt CamParent:entity CamPos:vector CamDist CamFOV StartedBoosting StartPos:vector M2Val3 M2Val3Increase Flying BoostingTest
 @model models/hunter/misc/sphere075x075.mdl
 @outputs MoveL:vector
 if(dupefinished()){reset()}
@@ -18,8 +18,6 @@ if(first()){
     noCollideAll(Base,0)
     Base:makeSpherical(6+6/2)
     Base:propInertia(vec(100))
-    
-  
     
     Seat = seatSpawn("models/nova/airboat_seat.mdl",1)
     
@@ -62,6 +60,9 @@ if(first()){
     
     I++, HN++, HT[HN,array] = array(I, Bones["Left_ForeArm",number], Left_HandParent, 0, vec(0, 0, Length2_Arm), ang(0, 0, 0), ShowBones, "models/sprops/geometry/sphere_3.mdl"),Bones["Left_Hand_Real",number]=I
     I++, HN++, HT[HN,array] = array(I, Bones["Right_ForeArm",number], Right_HandParent, 0, vec(0, 0, Length2_Arm), ang(0, 0, 0), ShowBones, "models/sprops/geometry/sphere_3.mdl"),Bones["Right_Hand_Real",number]=I
+    
+    I++, HN++, HT[HN,array] = array(I, Bones["Left_ForeArm",number], Turret1, 0, vec(0, 0, Length2_Arm), ang(0, 0, 0), ShowBones, "models/sprops/geometry/sphere_3.mdl"),Bones["TurretLeft",number]=I
+    I++, HN++, HT[HN,array] = array(I, Bones["Right_ForeArm",number], Turret2, 0, vec(0, 0, Length2_Arm), ang(0, 0, 0), ShowBones, "models/sprops/geometry/sphere_3.mdl"),Bones["TurretRight",number]=I
     
     
     I++, HN++, HT[HN,array] = array(I, Bones["Pelvis",number], noentity(), 0, vec(1, 5.5, -0.5)*Scale, ang(0, 0, 0), ShowBones, "models/sprops/geometry/sphere_3.mdl"),Bones["Left_LegHelper",number]=I
@@ -521,8 +522,8 @@ if(first()){
     
     BaseVel=Base:vel()#Base:forward()*80#Base:vel()
     SP = Driver:keySprint()*On_Ground2*!Driver:keyPressed("s")
-    M1 = Driver:keyAttack1()*!SP
-    M2 = Driver:keyAttack2()*!SP|M1
+    M1 = Driver:keyAttack1()
+    M2 = Driver:keyAttack2()
     W2 = Driver:keyPressed("w")*(On_Ground2|Flying)
     S2 = Driver:keyPressed("s")*(On_Ground2|Flying)
     A2 = Driver:keyPressed("a")*(On_Ground2|Flying)
@@ -530,6 +531,13 @@ if(first()){
     UP = Driver:keyJump()
     SL = 0#Driver:keyWalk()
     DN = Driver:keyWalk()
+    M2Val += (M2*2-1)*0.25
+    M2Val = clamp(M2Val,0,1)
+    Fire=(M2Val==1)&M1
+    Turret1W=Turret1:wirelink()
+    Turret2W=Turret2:wirelink()
+    Turret1W["Fire",number]=Fire
+    Turret2W["Fire",number]=Fire
     
     if(Driver:isValid()){
         LocalEyes3 = SL ? LocalEyes : Driver:eyeAngles()
@@ -717,7 +725,7 @@ if(first()){
     Cos2=cos((0.5+WalkRate)*180)*MoveVal
     Distance=55+(20*ShiftVal)
     
-    AimPos=Driver:isValid()*!SL ? rangerOffset(99999,holoEntity(Bones["CamParent",number]):pos(),LocalEyes:forward()):pos() : rangerOffset(99999,holoEntity(Bones["CamParent",number]):pos(),LocalEyes:forward()):pos()
+    AimPos=Driver:isValid()*!SL ? rangerOffset(99999,Driver:shootPos()+Driver:eye()*100,Driver:eye()):pos() : rangerOffset(99999,Driver:shootPos()+Driver:eye()*100,Driver:eye()):pos()
     if(Flying){
         if(Moving&SP){
             Animation["state",string]="move_air"
@@ -888,8 +896,8 @@ if(first()){
             soundPitch("Step_"+Step,50+30*clamp(Vel:length(),0,1))
         }
     }
-    arm_ik(0,-RollArmLeft,LeftArmTarget,table(ang(),0))
-    arm_ik(1,RollArmRight,RightArmTarget,table(ang(),0))
+    arm_ik(0,-RollArmLeft,mix(holoEntity(Bones["Left_UpperArm",number]):pos()+(AimPos-holoEntity(Bones["Left_UpperArm",number]):pos()):normalized()*(Length1_Arm+Length2_Arm),LeftArmTarget,M2Val),table(ang(),0))
+    arm_ik(1,RollArmRight,mix(holoEntity(Bones["Right_UpperArm",number]):pos()+(AimPos-holoEntity(Bones["Right_UpperArm",number]):pos()):normalized()*(Length1_Arm+Length2_Arm),RightArmTarget,M2Val),table(ang(),0))
     if(!Flying){
         holoPos(Bones["Root",number],mix(LeftLeg,RightLeg,0.5))
     }else{
